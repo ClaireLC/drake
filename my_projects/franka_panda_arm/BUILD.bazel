@@ -1,0 +1,30 @@
+load(
+    "@drake//tools/skylark:drake_cc.bzl",
+    "drake_cc_binary",
+)
+load("//tools/install:install_data.bzl", "install_data")
+
+drake_cc_binary(
+    name = "franka_panda_simulation",
+    srcs = [
+        "franka_panda_simulation.cc",
+    ],
+    data = [
+        ":models",
+        "//tools:drake_visualizer",
+    ],
+    deps = [
+        "//common:find_resource",
+        "//common:add_text_logging_gflags",
+        "//geometry:drake_visualizer",
+        "//lcm",
+        "//multibody/parsing",
+        "//multibody/plant",
+        "//systems/analysis:simulator",
+        "//systems/framework",
+    ],
+)
+
+# Installs model data
+install_data()
+
