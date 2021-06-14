@@ -20,6 +20,8 @@
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/systems/primitives/constant_vector_source.h"
+#include "drake/systems/controllers/inverse_dynamics_controller.h"
 
 using Eigen::VectorXd;
 
@@ -29,13 +31,17 @@ using drake::multibody::Body;
 using drake::multibody::MultibodyPlant;
 using drake::multibody::Parser;
 
-DEFINE_double(simulation_time, 5,
+DEFINE_double(simulation_time, std::numeric_limits<double>::infinity(),
               "Desired duration of the simulation in seconds");
 DEFINE_double(max_time_step, 1.0e-3,
               "Simulation time step used for integrator.");
 DEFINE_double(target_realtime_rate, 1,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
+
+DEFINE_double(Kp, 10.0, "Kp");
+DEFINE_double(Ki, 0.1, "Ki");
+DEFINE_double(Kd, 5.0, "Kd");
 
 DEFINE_bool(add_gravity, true,
             "Indicator for whether terrestrial gravity"
@@ -81,6 +87,44 @@ int DoMain() {
   builder.Connect(
       scene_graph->get_query_output_port(),
       panda_plant->get_geometry_query_input_port());
+
+  // Defind desired states, here we choose 0 positions and 0 velocities.
+  VectorX<double> desired_state =
+      VectorX<double>::Zero(panda_plant->num_multibody_states());
+  desired_state(2) = 1.0;
+  auto desired_state_source =
+      builder.AddSystem<systems::ConstantVectorSource<double>>(desired_state);
+  desired_state_source->set_name("constant_source");
+
+  // Constant zero load for plant actuation_input_port.
+  auto constant_zero_torque =
+      builder.AddSystem<systems::ConstantVectorSource<double>>(
+          Eigen::VectorXd::Zero(panda_plant->num_actuators()));
+  builder.Connect(constant_zero_torque->get_output_port(),
+                  panda_plant->get_actuation_input_port());
+
+  drake::log()->info(
+      "positions numbers: " + std::to_string(panda_plant->num_positions()) +
+      ", velocities numbers: " + std::to_string(panda_plant->num_velocities()) +
+      ", actuators numbers: " + std::to_string(panda_plant->num_actuators())
+    );
+
+  drake::log()->info("Desired joint state: ");
+  drake::log()->info(desired_state.transpose());
+
+  // Create inverse dynamics controller.
+  const int num_actuators = panda_plant->num_actuators();
+  auto IDC = builder.AddSystem<systems::controllers::InverseDynamicsController<double>>(
+              *panda_plant, Eigen::VectorXd::Ones(num_actuators) * FLAGS_Kp,
+              Eigen::VectorXd::Ones(num_actuators) * FLAGS_Ki,
+              Eigen::VectorXd::Ones(num_actuators) * FLAGS_Kd, false);
+  builder.Connect(IDC->get_output_port_control(),
+                  panda_plant->get_applied_generalized_force_input_port());
+  builder.Connect(panda_plant->get_state_output_port(),
+                  IDC->get_input_port_estimated_state());
+  builder.Connect(desired_state_source->get_output_port(),
+                  IDC->get_input_port_desired_state());
+
 
   // Add visualizer
   geometry::DrakeVisualizerd::AddToBuilder(&builder, *scene_graph);
