@@ -49,7 +49,7 @@ DEFINE_bool(add_gravity, true,
 
 const char kUrdfPath[] =
     "drake/manipulation/models/"
-    "franka_description/urdf/panda_arm_custom.urdf";
+    "panda_description/urdf/panda_arm_custom.urdf";
 
 namespace drake {
 namespace my_projects {
