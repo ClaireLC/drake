@@ -2,7 +2,13 @@ load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
 )
+
+load("@drake//tools/install:install.bzl", "install")
 load("//tools/install:install_data.bzl", "install_data")
+
+package(
+    default_visibility = [":__subpackages__"],
+)
 
 drake_cc_binary(
     name = "franka_panda_simulation",
@@ -11,6 +17,7 @@ drake_cc_binary(
     ],
     data = [
         ":models",
+        "//manipulation/models/franka_description:models",
         "//tools:drake_visualizer",
     ],
     deps = [
@@ -18,6 +25,8 @@ drake_cc_binary(
         "//common:add_text_logging_gflags",
         "//geometry:drake_visualizer",
         "//lcm",
+        "//lcm:drake_lcm",
+        "//systems/framework:diagram_builder",
         "//multibody/parsing",
         "//multibody/plant",
         "//systems/analysis:simulator",

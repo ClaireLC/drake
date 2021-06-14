@@ -42,8 +42,8 @@ DEFINE_bool(add_gravity, true,
             " (9.81 m/s²) is included or not.");
 
 const char kUrdfPath[] =
-    "drake/manipulation/models/franka_description/urdf/"
-    "franka_panda_custom.urdf";
+    "drake/manipulation/models/"
+    "franka_description/urdf/panda_arm_custom.urdf";
 
 namespace drake {
 namespace my_projects {
@@ -55,19 +55,20 @@ int DoMain() {
 
   SceneGraph<double>* scene_graph = builder.AddSystem<SceneGraph>();
 
+  // Add plant
   MultibodyPlant<double>* panda_plant =
       builder.AddSystem<MultibodyPlant>(FLAGS_max_time_step);
-  panda_plant->set_name("plant");
   panda_plant->RegisterAsSourceForSceneGraph(scene_graph);
 
   // Load URDF
-  //const multibody::ModelInstanceIndex panda_id =
-  //    Parser(panda_plant, scene_graph).AddModelFromFile(
-  //        FindResourceOrThrow(kUrdfPath));
+  const std::string urdf = FindResourceOrThrow(kUrdfPath);
+  const multibody::ModelInstanceIndex panda_id =
+      Parser(panda_plant, scene_graph).AddModelFromFile(
+          urdf);
 
-  //// Weld base link to world frame
-  //panda_plant->WeldFrames(panda_plant->world_frame(),
-  //                        panda_plant->GetFrameByName("base_link"));
+  // Weld base link to world frame
+  panda_plant->WeldFrames(panda_plant->world_frame(),
+                          panda_plant->GetFrameByName("base_link"));
 
   // Plant is complete
   panda_plant->Finalize();
@@ -81,8 +82,25 @@ int DoMain() {
       scene_graph->get_query_output_port(),
       panda_plant->get_geometry_query_input_port());
 
+  // Add visualizer
   geometry::DrakeVisualizerd::AddToBuilder(&builder, *scene_graph);
+
+  std::unique_ptr<systems::Diagram<double>> diagram = builder.Build();
+  // Create a context for this system, with default values for all systems
+  std::unique_ptr<systems::Context<double>> diagram_context =
+      diagram->CreateDefaultContext();
+  diagram->SetDefaultContext(diagram_context.get());
+
+  systems::Context<double>& plant_context =
+      diagram->GetMutableSubsystemContext(*panda_plant, diagram_context.get());
+  Eigen::VectorXd q = panda_plant->GetPositions(plant_context, panda_id);
     
+  // Set up simulator
+  systems::Simulator<double> simulator(*diagram);
+  simulator.set_publish_every_time_step(false);
+  simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
+  simulator.Initialize();
+  simulator.AdvanceTo(FLAGS_simulation_time);
   return 0;
 
 } // DoMain()
