@@ -17,7 +17,7 @@ drake_cc_binary(
     ],
     data = [
         ":models",
-        "//manipulation/models/franka_description:models",
+        "//manipulation/models/panda_description:models",
         "//tools:drake_visualizer",
     ],
     deps = [
